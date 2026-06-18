@@ -6,6 +6,10 @@ public class EnemyHealth : MonoBehaviour
     public float maxHealth = 3f;
     private float currentHealth;
 
+    [Header("XP")]
+    public int xpPerHit = 10;
+    public int xpOnDeath = 0;
+
     [Header("Animation")]
     public Animator animator;
     public string deathAnim = "Death";
@@ -25,6 +29,7 @@ public class EnemyHealth : MonoBehaviour
     private EnemyChasePlayer enemyChase;
 
     private HordeSpawner spawner;
+    private PlayerLevelSystem playerLevelSystem;
 
     private void Awake()
     {
@@ -39,6 +44,8 @@ public class EnemyHealth : MonoBehaviour
         allColliders = GetComponentsInChildren<Collider>();
         characterController = GetComponent<CharacterController>();
         enemyChase = GetComponent<EnemyChasePlayer>();
+
+        playerLevelSystem = FindAnyObjectByType<PlayerLevelSystem>();
     }
 
     public void SetSpawner(HordeSpawner newSpawner)
@@ -57,6 +64,9 @@ public class EnemyHealth : MonoBehaviour
         if (isDead) return;
 
         currentHealth -= damage;
+
+        if (playerLevelSystem != null)
+            playerLevelSystem.AddXP(xpPerHit);
 
         Debug.Log("Enemy Health: " + currentHealth);
 
@@ -79,6 +89,9 @@ public class EnemyHealth : MonoBehaviour
         if (isDead) return;
 
         isDead = true;
+
+        if (playerLevelSystem != null && xpOnDeath > 0)
+            playerLevelSystem.AddXP(xpOnDeath);
 
         Debug.Log("Enemy Dead");
 

@@ -1,4 +1,5 @@
 using System.Collections;
+using TMPro;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
@@ -66,6 +67,9 @@ public class TopDown3DPlayerMovement : MonoBehaviour
     public Vector3 normalUIScale = Vector3.one;
     public Vector3 reloadPopScale = new Vector3(1.12f, 1.12f, 1.12f);
 
+    [Header("Ammo UI")]
+    public TMP_Text ammoText;
+
     [Header("Gun Setup")]
     public Transform muzzlePoint;
     public GameObject projectilePrefab;
@@ -115,6 +119,7 @@ public class TopDown3DPlayerMovement : MonoBehaviour
         currentBullets = maxBullets;
 
         SetupUIStart();
+        UpdateAmmoUI();
     }
 
     private void OnEnable()
@@ -127,6 +132,7 @@ public class TopDown3DPlayerMovement : MonoBehaviour
         nextFireTime = 0f;
 
         SetupUIStart();
+        UpdateAmmoUI();
     }
 
     private void Update()
@@ -135,6 +141,12 @@ public class TopDown3DPlayerMovement : MonoBehaviour
         HandleReload();
         HandleShooting();
         MovePlayer();
+    }
+    private void UpdateAmmoUI()
+    {
+        if (ammoText == null) return;
+
+        ammoText.text = currentBullets + " / " + maxBullets;
     }
 
     private void SetupUIStart()
@@ -180,6 +192,7 @@ public class TopDown3DPlayerMovement : MonoBehaviour
 
             nextFireTime = Time.time + fireRate;
             currentBullets--;
+            UpdateAmmoUI();
 
             isShooting = true;
             shootTimer = shootAnimTime;
@@ -284,6 +297,7 @@ public class TopDown3DPlayerMovement : MonoBehaviour
         {
             isReloading = false;
             currentBullets = maxBullets;
+            UpdateAmmoUI();
             currentAnim = "";
 
             ShowGunUI();
@@ -561,5 +575,31 @@ public class TopDown3DPlayerMovement : MonoBehaviour
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, autoShootRadius);
+    }
+
+    // ===== WEAPON UPGRADE FUNCTIONS =====
+
+    public void UpgradeDeadeyeRounds()
+    {
+        projectileDamage += 1f;
+        Debug.Log("Deadeye Rounds Applied: Damage = " + projectileDamage);
+    }
+
+    public void UpgradeQuickTrigger()
+    {
+        fireRate *= 0.85f; // 15% faster
+        fireRate = Mathf.Max(0.05f, fireRate);
+
+        Debug.Log("Quick Trigger Applied: Fire Rate = " + fireRate);
+    }
+
+    public void UpgradeBiggerChamber()
+    {
+        maxBullets += 2;
+        currentBullets += 2;
+
+        UpdateAmmoUI();
+
+        Debug.Log("Bigger Chamber Applied: Max Bullets = " + maxBullets);
     }
 }
