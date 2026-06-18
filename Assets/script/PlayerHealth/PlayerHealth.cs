@@ -238,6 +238,8 @@ public class PlayerHealth : MonoBehaviour
         PlayDeathEffect();
 
         Destroy(gameObject, deathAnimTime);
+
+        StartCoroutine(DeathSceneSwitchDelay());
     }
 
     private void PlayDeathEffect()
@@ -255,5 +257,13 @@ public class PlayerHealth : MonoBehaviour
         );
 
         Destroy(fx, 3f);
+    }
+
+    private IEnumerator DeathSceneSwitchDelay()
+    {
+        yield return new WaitForSeconds(1f);
+
+        if (SmoothSceneTransition.Instance != null)
+            SmoothSceneTransition.Instance.FadeToLevel(0);
     }
 }

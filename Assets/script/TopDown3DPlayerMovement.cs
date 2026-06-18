@@ -70,6 +70,13 @@ public class TopDown3DPlayerMovement : MonoBehaviour
     [Header("Ammo UI")]
     public TMP_Text ammoText;
 
+    [Header("Audio")]
+    public AudioSource audioSource;
+    public AudioClip shootClip;
+    public AudioClip reloadClip;
+    public float shootVolume = 1f;
+    public float reloadVolume = 1f;
+
     [Header("Gun Setup")]
     public Transform muzzlePoint;
     public GameObject projectilePrefab;
@@ -116,6 +123,14 @@ public class TopDown3DPlayerMovement : MonoBehaviour
         if (animator != null)
             animator.applyRootMotion = false;
 
+        if (audioSource == null)
+            audioSource = GetComponent<AudioSource>();
+
+        if (audioSource == null)
+            audioSource = gameObject.AddComponent<AudioSource>();
+
+        audioSource.playOnAwake = false;
+
         currentBullets = maxBullets;
 
         SetupUIStart();
@@ -133,6 +148,18 @@ public class TopDown3DPlayerMovement : MonoBehaviour
 
         SetupUIStart();
         UpdateAmmoUI();
+    }
+
+    private void PlayShootSound()
+    {
+        if (audioSource != null && shootClip != null)
+            audioSource.PlayOneShot(shootClip, shootVolume);
+    }
+
+    private void PlayReloadSound()
+    {
+        if (audioSource != null && reloadClip != null)
+            audioSource.PlayOneShot(reloadClip, reloadVolume);
     }
 
     private void Update()
@@ -199,6 +226,7 @@ public class TopDown3DPlayerMovement : MonoBehaviour
 
             PlayAnim(shootAnim);
             SpawnMuzzleFlash();
+            PlayShootSound();
             ShootProjectile();
 
             if (showDebug)
@@ -282,6 +310,7 @@ public class TopDown3DPlayerMovement : MonoBehaviour
             PlayAnim(reloadAnim);
 
         ShowReloadUI();
+        PlayReloadSound();
 
         if (showDebug)
             Debug.Log("Reload Started...");
