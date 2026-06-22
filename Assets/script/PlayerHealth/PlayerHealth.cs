@@ -263,7 +263,7 @@ public class PlayerHealth : MonoBehaviour
     {
         yield return new WaitForSeconds(1f);
 
-        if (SmoothSceneTransition.Instance != null)
-            SmoothSceneTransition.Instance.FadeToLevel(0);
+        if (GameOverManager.Instance != null)
+            GameOverManager.Instance.ShowGameOver();
     }
 }

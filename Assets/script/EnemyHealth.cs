@@ -90,6 +90,10 @@ public class EnemyHealth : MonoBehaviour
 
         isDead = true;
 
+        // Add enemy kill count for Game Over Panel
+        if (GameOverManager.Instance != null)
+            GameOverManager.Instance.AddEnemyKill();
+
         if (playerLevelSystem != null && xpOnDeath > 0)
             playerLevelSystem.AddXP(xpOnDeath);
 

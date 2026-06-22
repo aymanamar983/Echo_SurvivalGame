@@ -21,6 +21,10 @@ public class TopDown3DPlayerMovement : MonoBehaviour
     public LayerMask enemyLayer;
     public float autoShootRadius = 18f;
 
+    [Header("Auto Aim")]
+    public bool useAutoAim = true;
+    private Transform currentAimTarget;
+
     [Tooltip("0.85 = enemy must be mostly in front of gun aim. Lower = easier, higher = stricter.")]
     public float aimShootDot = 0.85f;
 
@@ -88,6 +92,37 @@ public class TopDown3DPlayerMovement : MonoBehaviour
     public float projectileLifeTime = 3f;
     public float projectileDamage = 1f;
 
+    [Header("Extra Weapon Upgrade Stats")]
+    public float criticalChance = 0f;
+    public float criticalDamageMultiplier = 2f;
+
+    public bool explosiveRoundsEnabled = false;
+    public bool lifeStealEnabled = false;
+
+    [Header("Weapon Stats UI")]
+    public TMP_Text damageCurrentText;
+    public TMP_Text damageNextText;
+
+    public TMP_Text fireRateCurrentText;
+    public TMP_Text fireRateNextText;
+
+    public TMP_Text reloadSpeedCurrentText;
+    public TMP_Text reloadSpeedNextText;
+
+    public TMP_Text ammoCapacityCurrentText;
+    public TMP_Text ammoCapacityNextText;
+
+    public TMP_Text accuracyCurrentText;
+    public TMP_Text accuracyNextText;
+
+    [Header("Upgrade Preview Values")]
+    public float damageUpgradeAmount = 1f;
+    public float fireRateUpgradePercent = 0.15f;
+    public float reloadSpeedUpgradeAmount = 0.2f;
+    public int ammoCapacityUpgradeAmount = 2;
+    public float accuracyPercent = 70f;
+    public float accuracyUpgradeAmount = 10f;
+
     [Header("Debug")]
     public bool showDebug = true;
 
@@ -106,6 +141,8 @@ public class TopDown3DPlayerMovement : MonoBehaviour
     private float reloadTimer;
 
     private Coroutine uiRoutine;
+
+    public bool piercingBulletEnabled = false;
 
     private void Awake()
     {
@@ -135,6 +172,46 @@ public class TopDown3DPlayerMovement : MonoBehaviour
 
         SetupUIStart();
         UpdateAmmoUI();
+        UpdateWeaponStatsUI();
+    }
+
+    private void UpdateWeaponStatsUI()
+    {
+        float currentFireRate = 1f / fireRate;
+        float nextFireRate = 1f / Mathf.Max(0.05f, fireRate * (1f - fireRateUpgradePercent));
+
+        float nextReloadTime = Mathf.Max(0.3f, reloadTime - reloadSpeedUpgradeAmount);
+        float nextAccuracy = Mathf.Clamp(accuracyPercent + accuracyUpgradeAmount, 0f, 100f);
+
+        if (damageCurrentText != null)
+            damageCurrentText.text = projectileDamage.ToString("0");
+
+        if (damageNextText != null)
+            damageNextText.text = (projectileDamage + damageUpgradeAmount).ToString("0");
+
+        if (fireRateCurrentText != null)
+            fireRateCurrentText.text = currentFireRate.ToString("0.0");
+
+        if (fireRateNextText != null)
+            fireRateNextText.text = nextFireRate.ToString("0.0");
+
+        if (reloadSpeedCurrentText != null)
+            reloadSpeedCurrentText.text = reloadTime.ToString("0.0");
+
+        if (reloadSpeedNextText != null)
+            reloadSpeedNextText.text = nextReloadTime.ToString("0.0");
+
+        if (ammoCapacityCurrentText != null)
+            ammoCapacityCurrentText.text = maxBullets.ToString();
+
+        if (ammoCapacityNextText != null)
+            ammoCapacityNextText.text = (maxBullets + ammoCapacityUpgradeAmount).ToString();
+
+        if (accuracyCurrentText != null)
+            accuracyCurrentText.text = accuracyPercent.ToString("0") + "%";
+
+        if (accuracyNextText != null)
+            accuracyNextText.text = nextAccuracy.ToString("0") + "%";
     }
 
     private void OnEnable()
@@ -148,6 +225,7 @@ public class TopDown3DPlayerMovement : MonoBehaviour
 
         SetupUIStart();
         UpdateAmmoUI();
+        UpdateWeaponStatsUI();
     }
 
     private void PlayShootSound()
@@ -164,7 +242,18 @@ public class TopDown3DPlayerMovement : MonoBehaviour
 
     private void Update()
     {
-        AimToMouse();
+        if (useAutoAim)
+        {
+            bool foundEnemy = AutoAimToNearestEnemy();
+
+            if (!foundEnemy)
+                AimToMouse();
+        }
+        else
+        {
+            AimToMouse();
+        }
+
         HandleReload();
         HandleShooting();
         MovePlayer();
@@ -202,12 +291,7 @@ public class TopDown3DPlayerMovement : MonoBehaviour
         if (isReloading)
             return;
 
-        bool wantsToShoot;
-
-        if (useAutoShooting)
-            wantsToShoot = IsEnemyInAimDirection();
-        else
-            wantsToShoot = Input.GetMouseButton(shootMouseButton);
+        bool wantsToShoot = Input.GetMouseButton(shootMouseButton);
 
         if (wantsToShoot && Time.time >= nextFireTime)
         {
@@ -230,7 +314,7 @@ public class TopDown3DPlayerMovement : MonoBehaviour
             ShootProjectile();
 
             if (showDebug)
-                Debug.Log("Auto Shoot | Ammo: " + currentBullets + " / " + maxBullets);
+                Debug.Log("Manual Shoot | Ammo: " + currentBullets + " / " + maxBullets);
 
             if (currentBullets <= 0)
             {
@@ -248,6 +332,66 @@ public class TopDown3DPlayerMovement : MonoBehaviour
                 currentAnim = "";
             }
         }
+    }
+
+    private bool AutoAimToNearestEnemy()
+    {
+        if (model == null) return false;
+
+        currentAimTarget = FindNearestEnemy();
+
+        if (currentAimTarget == null)
+            return false;
+
+        Vector3 targetPos = currentAimTarget.position + Vector3.up * enemyCheckHeight;
+        Vector3 dir = targetPos - model.position;
+        dir.y = 0f;
+
+        if (dir.sqrMagnitude <= 0.01f)
+            return false;
+
+        Quaternion targetRot = Quaternion.LookRotation(dir.normalized);
+
+        model.rotation = Quaternion.Slerp(
+            model.rotation,
+            targetRot,
+            turnSpeed * Time.deltaTime
+        );
+
+        return true;
+    }
+
+    private Transform FindNearestEnemy()
+    {
+        Collider[] enemies = Physics.OverlapSphere(
+            transform.position,
+            autoShootRadius,
+            enemyLayer
+        );
+
+        Transform nearestEnemy = null;
+        float nearestDistance = Mathf.Infinity;
+
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            if (enemies[i] == null) continue;
+
+            EnemyHealth enemyHealth = enemies[i].GetComponentInParent<EnemyHealth>();
+            if (enemyHealth == null) continue;
+
+            float distance = Vector3.Distance(
+                transform.position,
+                enemyHealth.transform.position
+            );
+
+            if (distance < nearestDistance)
+            {
+                nearestDistance = distance;
+                nearestEnemy = enemyHealth.transform;
+            }
+        }
+
+        return nearestEnemy;
     }
 
     private bool IsEnemyInAimDirection()
@@ -611,13 +755,18 @@ public class TopDown3DPlayerMovement : MonoBehaviour
     public void UpgradeDeadeyeRounds()
     {
         projectileDamage += 1f;
+
+        UpdateWeaponStatsUI();
+
         Debug.Log("Deadeye Rounds Applied: Damage = " + projectileDamage);
     }
 
     public void UpgradeQuickTrigger()
     {
-        fireRate *= 0.85f; // 15% faster
+        fireRate *= 0.85f;
         fireRate = Mathf.Max(0.05f, fireRate);
+
+        UpdateWeaponStatsUI();
 
         Debug.Log("Quick Trigger Applied: Fire Rate = " + fireRate);
     }
@@ -628,7 +777,64 @@ public class TopDown3DPlayerMovement : MonoBehaviour
         currentBullets += 2;
 
         UpdateAmmoUI();
+        UpdateWeaponStatsUI();
 
         Debug.Log("Bigger Chamber Applied: Max Bullets = " + maxBullets);
+    }
+
+    public void UpgradeReloadSpeed()
+    {
+        reloadTime -= 0.2f;
+        reloadTime = Mathf.Max(0.3f, reloadTime);
+
+        UpdateWeaponStatsUI();
+
+        Debug.Log("Reload Speed Applied: Reload Time = " + reloadTime);
+    }
+
+    public void UpgradeCriticalHit()
+    {
+        criticalChance += 10f;
+        criticalChance = Mathf.Clamp(criticalChance, 0f, 100f);
+
+        Debug.Log("Critical Hit Applied: Critical Chance = " + criticalChance);
+    }
+
+    public void UpgradeBulletSpeed()
+    {
+        projectileSpeed *= 1.2f;
+
+        Debug.Log("Bullet Speed Applied: Projectile Speed = " + projectileSpeed);
+    }
+
+    public void UpgradeFastHand()
+    {
+        reloadTime *= 0.75f;
+        reloadTime = Mathf.Max(0.25f, reloadTime);
+
+        Debug.Log("Fast Hand Applied: Reload Time = " + reloadTime);
+    }
+
+    public void UpgradeExplosiveRounds()
+    {
+        explosiveRoundsEnabled = true;
+
+        Debug.Log("Explosive Rounds Enabled");
+    }
+
+    public void UpgradePiercingBullet()
+    {
+        piercingBulletEnabled = true;
+
+        Debug.Log("Piercing Bullet Enabled");
+    }
+
+    public void UpgradeDeadlyAim()
+    {
+        criticalDamageMultiplier += 0.5f;
+
+        UpdateWeaponStatsUI();
+
+        Debug.Log("Deadly Aim Applied: Critical Damage Multiplier = " + criticalDamageMultiplier);
     }
 }
